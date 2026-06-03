@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ejercicio 9 · CSS3D — Espacio vectorial RAG</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
+  :root{
+    --bg0:#05060c; --bg1:#0b1020; --ink:#dfe7ff; --muted:#7a85a8;
+    --doc:#fbbf24; --chunk:#34d399; --vec:#60a5fa; --query:#f472b6; --line:#1c2540;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1200px 800px at 50% 30%, var(--bg1), var(--bg0));
+    color:var(--ink); font-family:'Chakra Petch',sans-serif; overflow:hidden;
+    height:100vh; position:relative;
+  }
+  /* estrellas de fondo */
+  .stars{position:fixed;inset:0;pointer-events:none;opacity:.5}
+  .stars i{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:tw 3s infinite}
+  @keyframes tw{0%,100%{opacity:.2}50%{opacity:.9}}
+
+  header{position:fixed;top:0;left:0;right:0;z-index:20;padding:1.2rem 1.5rem;
+    background:linear-gradient(180deg, rgba(5,6,12,.9), transparent);pointer-events:none}
+  .tag{color:var(--vec);font-size:.7rem;letter-spacing:.25em;text-transform:uppercase;font-family:'Space Mono',monospace}
+  h1{font-size:1.6rem;font-weight:700;letter-spacing:.01em}
+  .sub{color:var(--muted);font-size:.82rem;max-width:54ch}
+
+  /* ESCENA 3D */
+  .escena{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    perspective:1400px;perspective-origin:50% 45%}
+  .mundo{position:relative;width:1px;height:1px;transform-style:preserve-3d;
+    transform:rotateX(-12deg) rotateY(0deg);transition:transform .15s ease-out}
+
+  /* suelo / rejilla */
+  .grid3d{position:absolute;width:1600px;height:1600px;left:-800px;top:-800px;
+    transform:rotateX(90deg) translateZ(-260px);transform-style:preserve-3d;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:80px 80px;opacity:.35;
+    mask-image:radial-gradient(circle at center, #000 30%, transparent 72%);
+    -webkit-mask-image:radial-gradient(circle at center, #000 30%, transparent 72%)}
+
+  .nodo{position:absolute;transform-style:preserve-3d;left:0;top:0}
+  .cara{position:absolute;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-family:'Space Mono',monospace;font-weight:700;text-align:center;backface-visibility:visible}
+
+  /* DOCUMENTO (cubo grande) */
+  .doc .cara{width:120px;height:150px;margin:-75px 0 0 -60px;background:rgba(251,191,36,.12);
+    border:1.5px solid var(--doc);color:var(--doc);font-size:.7rem;box-shadow:0 0 30px rgba(251,191,36,.25)}
+  .doc .f1{transform:translateZ(30px)} .doc .f2{transform:rotateY(180deg) translateZ(30px)}
+  .doc .f3{transform:rotateY(90deg) translateZ(60px);width:60px;margin-left:-30px}
+  .doc .f4{transform:rotateY(-90deg) translateZ(60px);width:60px;margin-left:-30px}
+
+  /* CHUNKS (pequeñas placas) */
+  .chunk .cara{width:74px;height:54px;margin:-27px 0 0 -37px;background:rgba(52,211,153,.14);
+    border:1.5px solid var(--chunk);color:var(--chunk);font-size:.62rem;box-shadow:0 0 18px rgba(52,211,153,.25)}
+  .chunk .f1{transform:translateZ(8px)} .chunk .f2{transform:translateZ(-8px) rotateY(180deg)}
+
+  /* VECTORES (esferas/diamantes flotando) */
+  .vec .cara{width:46px;height:46px;margin:-23px 0 0 -23px;background:rgba(96,165,250,.16);
+    border:1.5px solid var(--vec);color:var(--vec);font-size:.58rem;border-radius:50%;
+    box-shadow:0 0 16px rgba(96,165,250,.35)}
+  .vec .f1{transform:translateZ(6px)} .vec .f2{transform:translateZ(-6px)}
+  .vec.hit .cara{background:rgba(244,114,182,.25);border-color:var(--query);color:#fff;
+    box-shadow:0 0 26px var(--query);transform:scale(1.18) translateZ(6px)}
+
+  /* QUERY (núcleo pulsante) */
+  .query .cara{width:60px;height:60px;margin:-30px 0 0 -30px;background:rgba(244,114,182,.2);
+    border:2px solid var(--query);color:#fff;font-size:.62rem;border-radius:50%;
+    box-shadow:0 0 40px var(--query);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 30px var(--query)}50%{box-shadow:0 0 60px var(--query)}}
+
+  /* etiquetas de fase flotantes */
+  .label{position:absolute;font-family:'Space Mono',monospace;font-size:.6rem;color:var(--muted);
+    white-space:nowrap;transform:translate(-50%,-50%)}
+
+  /* líneas de conexión (rayos query->vector) */
+  .ray{position:absolute;height:2px;transform-origin:left center;left:0;top:0;
+    background:linear-gradient(90deg, var(--query), transparent);opacity:0;transition:opacity .4s}
+  .ray.on{opacity:.7}
+
+  /* controles */
+  .panel{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);z-index:20;
+    background:rgba(11,16,32,.85);border:1px solid var(--line);border-radius:16px;
+    padding:1rem 1.3rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+    backdrop-filter:blur(8px);max-width:94vw}
+  .panel input[type=text]{font-family:'Space Mono',monospace;font-size:.82rem;background:var(--bg0);
+    border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:.6rem .8rem;width:260px}
+  .panel input:focus{outline:2px solid var(--query);border-color:transparent}
+  .panel button{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:.82rem;border:none;
+    border-radius:9px;padding:.6rem 1.1rem;cursor:pointer;background:var(--query);color:#2a0a1c}
+  .panel button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  .panel button:hover{filter:brightness(1.1)}
+  .legend{display:flex;gap:.8rem;font-size:.68rem;color:var(--muted);font-family:'Space Mono',monospace}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:.25rem;vertical-align:middle}
+  .hint{position:fixed;top:5.5rem;right:1.5rem;z-index:20;font-size:.68rem;color:var(--muted);
+    font-family:'Space Mono',monospace;text-align:right;line-height:1.6;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+
+<header>
+  <div class="tag">Ejercicio 9 · CSS 3D</div>
+  <h1>Espacio vectorial de un RAG</h1>
+  <div class="sub">El recorrido de un RAG en 3D: el documento se trocea en chunks,
+  cada chunk se convierte en un vector flotando en el espacio, y tu pregunta (rosa)
+  ilumina los vectores semánticamente más cercanos. Construido solo con transforms CSS.</div>
+</header>
+
+<div class="hint">
+  arrastra para girar · rueda para zoom<br>
+  todo es CSS 3D (sin WebGL)
+</div>
+
+<div class="escena">
+  <div class="mundo" id="mundo">
+    <div class="grid3d"></div>
+    <!-- los nodos se generan por JS -->
+  </div>
+</div>
+
+<div class="panel">
+  <div class="legend">
+    <span><i style="background:var(--doc)"></i>documento</span>
+    <span><i style="background:var(--chunk)"></i>chunks</span>
+    <span><i style="background:var(--vec)"></i>vectores</span>
+    <span><i style="background:var(--query)"></i>query</span>
+  </div>
+  <input type="text" id="q" placeholder="Escribe una pregunta..." value="¿qué es un proceso?">
+  <button id="buscar">🔎 Buscar</button>
+  <button class="ghost" id="auto">↻ Auto-girar</button>
+</div>
+
+<script>
+const mundo=document.getElementById('mundo');
+
+// --- fondo de estrellas ---
+const stars=document.getElementById('stars');
+for(let i=0;i<80;i++){
+  const s=document.createElement('i');
+  s.style.left=Math.random()*100+'%'; s.style.top=Math.random()*100+'%';
+  s.style.animationDelay=(Math.random()*3)+'s';
+  stars.appendChild(s);
+}
+
+// --- datos: chunks de ejemplo y su "concepto" para simular similitud ---
+const CHUNKS=[
+  {t:'proceso aislado', tema:['proceso','memoria','aislado','cpu']},
+  {t:'hilos comparten', tema:['hilo','memoria','compartida','concurrencia']},
+  {t:'sockets TCP', tema:['red','socket','cliente','servidor']},
+  {t:'API REST JSON', tema:['api','rest','http','servicio']},
+  {t:'hash + salt', tema:['seguridad','hash','contraseña','salt']},
+  {t:'AES-GCM', tema:['cifrado','aes','integridad','clave']},
+  {t:'embeddings', tema:['vector','embedding','semantica','rag']},
+  {t:'ChromaDB query', tema:['vector','base','datos','similitud']},
+];
+
+// posiciones 3D de los vectores en una esfera alrededor del centro
+function esfera(i,n,r){
+  const phi=Math.acos(1-2*(i+0.5)/n);
+  const theta=Math.PI*(1+Math.sqrt(5))*i;
+  return {
+    x:r*Math.sin(phi)*Math.cos(theta),
+    y:r*Math.cos(phi)*0.6,
+    z:r*Math.sin(phi)*Math.sin(theta),
+  };
+}
+
+function nodo(clase, x,y,z, caras){
+  const n=document.createElement('div');
+  n.className='nodo '+clase;
+  n.style.transform=`translate3d(${x}px,${y}px,${z}px)`;
+  n.dataset.x=x; n.dataset.y=y; n.dataset.z=z;
+  caras.forEach((txt,i)=>{
+    const c=document.createElement('div');
+    c.className='cara f'+(i+1); c.textContent=txt;
+    n.appendChild(c);
+  });
+  return n;
+}
+function etiqueta(txt,x,y,z){
+  const l=document.createElement('div'); l.className='label'; l.textContent=txt;
+  l.style.transform=`translate3d(${x}px,${y}px,${z}px)`;
+  return l;
+}
+
+// documento (izquierda)
+mundo.appendChild(nodo('doc', -460,0,0, ['DOC','DOC','','']));
+mundo.appendChild(etiqueta('1 · documento', -460, 130, 0));
+
+// chunks (centro-izquierda, en columna)
+mundo.appendChild(etiqueta('2 · chunks', -210, 170, 0));
+const nChunks=CHUNKS.length;
+CHUNKS.forEach((ch,i)=>{
+  const y=(i-(nChunks-1)/2)*68;
+  mundo.appendChild(nodo('chunk', -210, y, 0, [ch.t, ch.t]));
+});
+
+// vectores (esfera a la derecha)
+mundo.appendChild(etiqueta('3 · vectores', 240, 200, 0));
+const vecNodos=[];
+CHUNKS.forEach((ch,i)=>{
+  const p=esfera(i,nChunks,200);
+  const v=nodo('vec', 240+p.x, p.y, p.z, ['▦','▦']);
+  v.dataset.tema=ch.tema.join(' ');
+  v.dataset.idx=i;
+  v.title=ch.t;
+  mundo.appendChild(v);
+  vecNodos.push(v);
+});
+
+// núcleo query (centro de la esfera)
+const queryNode=nodo('query', 240,0,0, ['?','?']);
+mundo.appendChild(queryNode);
+
+// rayos query -> vector
+const rays=[];
+vecNodos.forEach(v=>{
+  const r=document.createElement('div'); r.className='ray';
+  mundo.appendChild(r); rays.push(r);
+});
+function colocarRayos(){
+  const qx=240, qy=0, qz=0;
+  vecNodos.forEach((v,i)=>{
+    const vx=+v.dataset.x, vy=+v.dataset.y, vz=+v.dataset.z;
+    const dx=vx-qx, dy=vy-qy, dz=vz-qz;
+    const len=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    const ry=Math.atan2(dz,dx);              // giro horizontal
+    const rz=Math.atan2(dy,Math.sqrt(dx*dx+dz*dz)); // inclinación
+    rays[i].style.width=len+'px';
+    rays[i].style.transform=
+      `translate3d(${qx}px,${qy}px,${qz}px) rotateY(${-ry}rad) rotateZ(${rz}rad)`;
+  });
+}
+colocarRayos();
+
+// --- "búsqueda" semántica simple por solape de palabras ---
+function buscar(){
+  const q=document.getElementById('q').value.toLowerCase();
+  const palabras=q.split(/\W+/).filter(Boolean);
+  const punt=vecNodos.map(v=>{
+    const tema=v.dataset.tema;
+    let s=0; palabras.forEach(p=>{ if(tema.includes(p)) s+=2; 
+      // coincidencia parcial
+      tema.split(' ').forEach(t=>{ if(t.startsWith(p.slice(0,4))&&p.length>3) s+=1; });
+    });
+    return s;
+  });
+  const max=Math.max(...punt,0);
+  vecNodos.forEach((v,i)=>{
+    v.classList.remove('hit'); rays[i].classList.remove('on');
+  });
+  // iluminar los 3 mejores con puntuación > 0
+  const ranking=punt.map((s,i)=>({s,i})).filter(o=>o.s>0).sort((a,b)=>b.s-a.s).slice(0,3);
+  if(ranking.length===0){
+    // sin coincidencias claras: ilumina el más "cercano" igualmente (el primero)
+    return;
+  }
+  ranking.forEach(o=>{ vecNodos[o.i].classList.add('hit'); rays[o.i].classList.add('on'); });
+}
+document.getElementById('buscar').onclick=buscar;
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')buscar();});
+
+// --- control de cámara: arrastrar para rotar, rueda para zoom ---
+let rotX=-12, rotY=0, dist=0, dragging=false, lx=0, ly=0;
+function aplicar(){
+  mundo.style.transform=`translateZ(${dist}px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+}
+document.addEventListener('mousedown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;});
+document.addEventListener('mouseup',()=>dragging=false);
+document.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  rotY+=(e.clientX-lx)*0.4; rotX-=(e.clientY-ly)*0.4;
+  rotX=Math.max(-80,Math.min(80,rotX));
+  lx=e.clientX; ly=e.clientY; auto=false; aplicar();
+});
+document.addEventListener('wheel',e=>{
+  dist-=e.deltaY*0.4; dist=Math.max(-500,Math.min(400,dist)); aplicar();
+},{passive:true});
+// táctil
+let tlx=0,tly=0;
+document.addEventListener('touchstart',e=>{tlx=e.touches[0].clientX;tly=e.touches[0].clientY;});
+document.addEventListener('touchmove',e=>{
+  rotY+=(e.touches[0].clientX-tlx)*0.4; rotX-=(e.touches[0].clientY-tly)*0.4;
+  rotX=Math.max(-80,Math.min(80,rotX));
+  tlx=e.touches[0].clientX; tly=e.touches[0].clientY; auto=false; aplicar();
+},{passive:true});
+
+// auto-giro
+let auto=true;
+function loop(){
+  if(auto){ rotY+=0.25; aplicar(); }
+  requestAnimationFrame(loop);
+}
+document.getElementById('auto').onclick=()=>{auto=!auto;};
+aplicar(); loop();
+setTimeout(buscar, 600);  // búsqueda inicial de ejemplo
+</script>
+</body>
+</html>

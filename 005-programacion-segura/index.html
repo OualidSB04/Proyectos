@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unidad 005 · Programación segura (Web Crypto)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Mono:wght@400;700&display=swap');
+  :root{
+    --bg:#0a0a0f; --panel:#13131c; --line:#262636; --ink:#eaeaf2; --muted:#888aa0;
+    --accent:#f43f5e; --accent2:#22d3ee; --ok:#4ade80; --warn:#facc15;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(680px 380px at 8% -10%, rgba(244,63,94,.1), transparent),
+      radial-gradient(560px 360px at 95% 8%, rgba(34,211,238,.07), transparent),
+      var(--bg);
+    color:var(--ink); font-family:'Space Mono',monospace; min-height:100vh;
+    padding:2rem 1.25rem; line-height:1.55;
+  }
+  .wrap{max-width:920px;margin:0 auto}
+  header{margin-bottom:1.8rem;border-bottom:1px solid var(--line);padding-bottom:1.4rem}
+  .tag{color:var(--accent);font-size:.75rem;letter-spacing:.22em;text-transform:uppercase}
+  h1{font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;margin:.3rem 0;letter-spacing:-.02em}
+  .lead{color:var(--muted);max-width:66ch;font-size:.9rem}
+  .lead code{color:var(--accent2)}
+  .modules{display:flex;flex-direction:column;gap:1.25rem;margin-top:1.5rem}
+  .mod{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1.4rem}
+  .mod h2{font-family:'Syne',sans-serif;font-weight:700;font-size:1.3rem;margin-bottom:.3rem;display:flex;
+    align-items:center;gap:.5rem}
+  .mod .n{color:var(--accent);font-size:1rem}
+  .mod p.d{font-size:.82rem;color:var(--muted);margin-bottom:1rem}
+  .field{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem}
+  label{font-size:.8rem;color:var(--muted);min-width:90px}
+  input[type=text],input[type=password]{flex:1;min-width:160px;font-family:inherit;font-size:.85rem;
+    border-radius:9px;border:1px solid var(--line);background:#0a0a12;color:var(--ink);padding:.6rem .8rem}
+  input:focus{outline:2px solid var(--accent2);border-color:transparent}
+  button{font-family:inherit;font-size:.83rem;border-radius:9px;border:1px solid var(--line);
+    background:#0a0a12;color:var(--ink);padding:.6rem 1rem;cursor:pointer;font-weight:700}
+  button.act{background:var(--accent);color:#1a0008;border-color:transparent}
+  button.act2{background:var(--accent2);color:#04181c;border-color:transparent}
+  button:hover{filter:brightness(1.1)} button:disabled{opacity:.5;cursor:not-allowed}
+  .out{background:#0a0a12;border:1px solid var(--line);border-radius:10px;padding:.8rem;
+    font-size:.76rem;word-break:break-all;margin-top:.6rem;min-height:2.4em;color:var(--accent2)}
+  .out.ok{border-color:rgba(74,222,128,.4);color:var(--ok)}
+  .out.bad{border-color:rgba(244,63,94,.4);color:var(--accent)}
+  .out .lbl{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:.2rem}
+  .meter{height:8px;background:#0a0a12;border-radius:4px;overflow:hidden;margin:.5rem 0;border:1px solid var(--line)}
+  .meter>i{display:block;height:100%;width:0;transition:.3s;border-radius:4px}
+  .strength{font-size:.78rem;font-weight:700;margin-top:.2rem}
+  .pwbox{display:flex;gap:.5rem;align-items:center}
+  .pwbox .gen{flex:1;font-size:1rem;color:var(--ok);background:#0a0a12;border:1px solid var(--line);
+    border-radius:9px;padding:.7rem .9rem;letter-spacing:.05em}
+  .note{font-size:.8rem;color:var(--muted);background:#0a0a12;border-left:3px solid var(--ok);
+    padding:.8rem 1rem;border-radius:0 8px 8px 0;margin-top:1.5rem}
+  .concepts{margin-top:2rem;border-top:1px solid var(--line);padding-top:1.5rem}
+  .concepts h3{font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:.8rem}
+  .concepts ul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.85rem}
+  @media(max-width:760px){.concepts ul{grid-template-columns:1fr}}
+  .concepts li{color:var(--muted)} .concepts li b{color:var(--ink)}
+  code{background:#0a0a12;padding:.1rem .35rem;border-radius:4px;color:var(--accent2)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+  @media(max-width:600px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Unidad 005 — Utilización de técnicas de programación segura</div>
+    <h1>Laboratorio de criptografía</h1>
+    <p class="lead">Todo se ejecuta en tu navegador con la <b>Web Crypto API</b>
+    (<code>crypto.subtle</code>), la misma que usan las aplicaciones reales. Sin librerías
+    externas y sin enviar nada a ningún servidor: hash de contraseñas, cifrado autenticado
+    y generación segura de claves.</p>
+  </header>
+
+  <div class="modules">
+
+    <!-- 1. HASH -->
+    <div class="mod">
+      <h2><span class="n">01</span> Hash de contraseñas <span style="font-size:.8rem;color:var(--muted)">· PBKDF2-SHA256 + salt</span></h2>
+      <p class="d">Las contraseñas nunca se guardan en claro. Se almacena un hash con salt aleatorio
+      y muchas iteraciones, lo que hace inviable revertirlo.</p>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="hPwd" placeholder="Escribe una contraseña" value="MiClave123!">
+        <button class="act" id="hHash">Generar hash</button>
+      </div>
+      <div class="out" id="hOut"><span class="lbl">resultado (salt$hash)</span>—</div>
+      <div class="field" style="margin-top:.8rem">
+        <label>Verificar</label>
+        <input type="password" id="hVer" placeholder="Repite para verificar" value="MiClave123!">
+        <button class="act2" id="hCheck">Verificar</button>
+      </div>
+      <div class="out" id="hVerOut"><span class="lbl">verificación</span>—</div>
+    </div>
+
+    <!-- 2. CIFRADO -->
+    <div class="mod">
+      <h2><span class="n">02</span> Cifrado autenticado <span style="font-size:.8rem;color:var(--muted)">· AES-GCM 256</span></h2>
+      <p class="d">AES-GCM cifra y a la vez garantiza la integridad: si alguien altera el mensaje
+      cifrado, el descifrado falla. La clave se deriva de una contraseña con PBKDF2.</p>
+      <div class="field">
+        <label>Mensaje</label>
+        <input type="text" id="cMsg" placeholder="Texto secreto" value="El código de la caja fuerte es 4815">
+      </div>
+      <div class="field">
+        <label>Clave</label>
+        <input type="password" id="cKey" placeholder="Clave maestra" value="clave-secreta">
+        <button class="act" id="cEnc">Cifrar 🔒</button>
+        <button class="act2" id="cDec">Descifrar 🔓</button>
+      </div>
+      <div class="out" id="cOut"><span class="lbl">texto cifrado (base64)</span>—</div>
+      <div class="grid2" style="margin-top:.6rem">
+        <button id="cTamper" disabled style="border-color:var(--warn);color:var(--warn)">😈 Manipular 1 byte</button>
+        <button id="cWrong" disabled style="border-color:var(--accent);color:var(--accent)">🔑 Probar clave errónea</button>
+      </div>
+      <div class="out" id="cDecOut"><span class="lbl">descifrado</span>—</div>
+    </div>
+
+    <!-- 3. GENERADOR -->
+    <div class="mod">
+      <h2><span class="n">03</span> Generador seguro <span style="font-size:.8rem;color:var(--muted)">· crypto.getRandomValues</span></h2>
+      <p class="d">Contraseñas con un generador criptográficamente seguro (no <code>Math.random</code>).
+      El medidor evalúa la fortaleza en tiempo real.</p>
+      <div class="field">
+        <label>Longitud</label>
+        <input type="range" id="gLen" min="8" max="32" value="16" style="flex:1;accent-color:var(--accent)">
+        <span id="gLenV" style="color:var(--accent2);min-width:30px">16</span>
+        <button class="act" id="gGen">Generar</button>
+      </div>
+      <div class="pwbox"><div class="gen" id="gOut">—</div><button id="gCopy">Copiar</button></div>
+
+      <div style="margin-top:1.2rem">
+        <label style="display:block;margin-bottom:.4rem">Medidor de fortaleza (prueba a escribir):</label>
+        <input type="text" id="sIn" placeholder="Escribe una contraseña para evaluarla" style="width:100%">
+        <div class="meter"><i id="sBar"></i></div>
+        <div class="strength" id="sTxt">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <b>Buenas prácticas aplicadas:</b> salt aleatorio por contraseña, PBKDF2 con 150.000
+    iteraciones, cifrado autenticado (AES-GCM detecta manipulaciones) e IV/nonce único por
+    mensaje. Nada de MD5/SHA1 a secas ni de <code>Math.random</code> para material criptográfico.
+  </div>
+
+  <div class="concepts">
+    <h3>Conceptos de la unidad</h3>
+    <ul>
+      <li><b>Hash con salt:</b> almacenamiento seguro de credenciales.</li>
+      <li><b>Cifrado simétrico:</b> AES-GCM con clave derivada de contraseña.</li>
+      <li><b>Integridad:</b> el cifrado autenticado detecta cualquier alteración.</li>
+      <li><b>Aleatoriedad segura:</b> CSPRNG para claves, salts e IVs.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const enc=new TextEncoder(), dec=new TextDecoder();
+const ITER=150000;
+
+const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64=str=>Uint8Array.from(atob(str),c=>c.charCodeAt(0));
+
+async function derivarBits(pwd, salt, bits=256){
+  const base=await crypto.subtle.importKey('raw',enc.encode(pwd),'PBKDF2',false,['deriveBits','deriveKey']);
+  return crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:ITER,hash:'SHA-256'},base,bits);
+}
+async function derivarClaveAES(pwd, salt){
+  const base=await crypto.subtle.importKey('raw',enc.encode(pwd),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt,iterations:ITER,hash:'SHA-256'},
+    base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+
+// ---- 01 HASH ----
+$('#hHash').onclick=async()=>{
+  const pwd=$('#hPwd').value; if(!pwd)return;
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const bits=await derivarBits(pwd,salt);
+  const guardado=b64(salt)+'$'+b64(bits);
+  $('#hOut').dataset.stored=guardado;
+  $('#hOut').className='out ok';
+  $('#hOut').innerHTML='<span class="lbl">resultado (salt$hash)</span>'+guardado;
+};
+$('#hCheck').onclick=async()=>{
+  const guardado=$('#hOut').dataset.stored;
+  if(!guardado){$('#hVerOut').className='out bad';$('#hVerOut').innerHTML='<span class="lbl">verificación</span>Genera primero un hash.';return;}
+  const [saltB64,hashB64]=guardado.split('$');
+  const salt=unb64(saltB64);
+  const bits=await derivarBits($('#hVer').value,salt);
+  const ok=b64(bits)===hashB64;
+  $('#hVerOut').className='out '+(ok?'ok':'bad');
+  $('#hVerOut').innerHTML='<span class="lbl">verificación</span>'+(ok?'✓ La contraseña coincide':'✗ No coincide');
+};
+
+// ---- 02 CIFRADO ----
+$('#cEnc').onclick=async()=>{
+  const msg=$('#cMsg').value, key=$('#cKey').value; if(!msg||!key)return;
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const clave=await derivarClaveAES(key,salt);
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},clave,enc.encode(msg));
+  // blob = salt(16) + iv(12) + ciphertext
+  const blob=new Uint8Array(16+12+ct.byteLength);
+  blob.set(salt,0); blob.set(iv,16); blob.set(new Uint8Array(ct),28);
+  const out=b64(blob);
+  $('#cOut').dataset.blob=out;
+  $('#cOut').className='out ok';
+  $('#cOut').innerHTML='<span class="lbl">texto cifrado (base64)</span>'+out;
+  $('#cTamper').disabled=false; $('#cWrong').disabled=false;
+};
+async function descifrar(blobB64, key){
+  const blob=unb64(blobB64);
+  const salt=blob.slice(0,16), iv=blob.slice(16,28), ct=blob.slice(28);
+  const clave=await derivarClaveAES(key,salt);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},clave,ct);
+  return dec.decode(pt);
+}
+$('#cDec').onclick=async()=>{
+  const blob=$('#cOut').dataset.blob;
+  if(!blob){$('#cDecOut').className='out bad';$('#cDecOut').innerHTML='<span class="lbl">descifrado</span>Cifra primero un mensaje.';return;}
+  try{
+    const txt=await descifrar(blob,$('#cKey').value);
+    $('#cDecOut').className='out ok';
+    $('#cDecOut').innerHTML='<span class="lbl">descifrado</span>✓ '+txt;
+  }catch{
+    $('#cDecOut').className='out bad';
+    $('#cDecOut').innerHTML='<span class="lbl">descifrado</span>✗ Fallo: clave incorrecta o datos manipulados';
+  }
+};
+$('#cTamper').onclick=async()=>{
+  const blob=unb64($('#cOut').dataset.blob);
+  blob[30]^=0x01;                       // alterar un byte del ciphertext
+  const manip=b64(blob);
+  try{ await descifrar(manip,$('#cKey').value); $('#cDecOut').innerHTML='(inesperado)'; }
+  catch{
+    $('#cDecOut').className='out bad';
+    $('#cDecOut').innerHTML='<span class="lbl">descifrado</span>😈 Byte alterado → AES-GCM <b>detecta la manipulación</b> y rechaza el descifrado.';
+  }
+};
+$('#cWrong').onclick=async()=>{
+  try{ await descifrar($('#cOut').dataset.blob,$('#cKey').value+'X'); }
+  catch{
+    $('#cDecOut').className='out bad';
+    $('#cDecOut').innerHTML='<span class="lbl">descifrado</span>🔑 Clave errónea → descifrado rechazado.';
+  }
+};
+
+// ---- 03 GENERADOR + MEDIDOR ----
+const ALF='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*-_';
+function generar(n){
+  const vals=crypto.getRandomValues(new Uint32Array(n));
+  let out=''; for(let i=0;i<n;i++) out+=ALF[vals[i]%ALF.length];
+  return out;
+}
+function fortaleza(p){
+  let s=0;
+  if(p.length>=8)s++; if(p.length>=12)s++;
+  if(/[a-z]/.test(p)&&/[A-Z]/.test(p))s++;
+  if(/\d/.test(p))s++;
+  if(/[^a-zA-Z0-9]/.test(p))s++;
+  return s;
+}
+const COL=['#f43f5e','#f43f5e','#facc15','#22d3ee','#4ade80','#4ade80'];
+const ET=['Muy débil','Débil','Aceptable','Buena','Fuerte','Excelente'];
+function medir(p){
+  const s=p?fortaleza(p):0;
+  $('#sBar').style.width=(s/5*100)+'%'; $('#sBar').style.background=COL[s];
+  $('#sTxt').textContent=p?`${ET[s]} (${s}/5)`:'—'; $('#sTxt').style.color=COL[s];
+}
+$('#gLen').oninput=e=>$('#gLenV').textContent=e.target.value;
+$('#gGen').onclick=()=>{const p=generar(+$('#gLen').value);$('#gOut').textContent=p;$('#sIn').value=p;medir(p);};
+$('#gCopy').onclick=()=>{const t=$('#gOut').textContent;if(t&&t!=='—'){navigator.clipboard?.writeText(t);$('#gCopy').textContent='✓';setTimeout(()=>$('#gCopy').textContent='Copiar',1200);}};
+$('#sIn').oninput=e=>medir(e.target.value);
+medir('');
+</script>
+</body>
+</html>

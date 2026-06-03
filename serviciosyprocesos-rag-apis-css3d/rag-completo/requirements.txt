@@ -1,0 +1,3 @@
+chromadb>=0.5
+flask>=3.0
+sentence-transformers>=2.2   # opcional: embeddings de calidad (si no, hay respaldo)

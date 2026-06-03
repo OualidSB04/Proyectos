@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cliente web · API del Almacén</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root{
+    --bg:#0d0f14; --panel:#161a23; --line:#252b38; --ink:#e8ecf4; --muted:#8289aa;
+    --srv:#f59e0b; --cli:#22d3ee; --ok:#4ade80; --err:#f87171;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(700px 400px at 90% -10%, rgba(34,211,238,.08), transparent), var(--bg);
+    color:var(--ink); font-family:'IBM Plex Mono',monospace; min-height:100vh; padding:2rem 1.25rem;
+  }
+  .wrap{max-width:960px;margin:0 auto}
+  .tag{color:var(--cli);font-size:.74rem;letter-spacing:.22em;text-transform:uppercase}
+  h1{font-family:'Bricolage Grotesque',sans-serif;font-size:2.3rem;font-weight:800;margin:.3rem 0}
+  .lead{color:#828aaa;max-width:64ch;font-size:.9rem;line-height:1.6}
+  .arch{display:flex;align-items:center;gap:1rem;justify-content:center;margin:1.5rem 0;flex-wrap:wrap}
+  .box{border-radius:12px;padding:.9rem 1.3rem;font-weight:600;font-size:.85rem;border:1px solid var(--line)}
+  .box.cli{background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.4);color:var(--cli)}
+  .box.srv{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:var(--srv)}
+  .arrow{color:#828aaa;font-size:1.3rem}
+  .conn{font-size:.72rem;text-align:center;color:#828aaa;margin-bottom:1.5rem}
+  .conn input{font-family:inherit;background:#0d0f14;border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:.4rem .7rem;width:220px}
+  .conn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--err);margin-right:.3rem}
+  .conn .dot.up{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+  @media(max-width:780px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.2rem}
+  .panel h3{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:#828aaa;margin-bottom:.8rem}
+  .verbs{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem}
+  .verb{border:none;border-radius:8px;padding:.5rem .85rem;font-family:inherit;font-weight:700;
+    font-size:.78rem;cursor:pointer;color:#0a0d14}
+  .verb.get{background:#22d3ee} .verb.post{background:#4ade80}
+  .verb.put{background:#f59e0b} .verb.del{background:#f87171}
+  .verb:hover{filter:brightness(1.1)} .verb:disabled{opacity:.5;cursor:not-allowed}
+  input.f{width:100%;font-family:inherit;font-size:.82rem;background:#0d0f14;border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:.5rem .7rem;margin-bottom:.5rem}
+  pre{background:#0d0f14;border:1px solid var(--line);border-radius:10px;padding:.9rem;font-size:.76rem;
+    overflow:auto;max-height:360px;white-space:pre-wrap;word-break:break-word;line-height:1.5}
+  .pill{display:inline-block;padding:.15rem .55rem;border-radius:14px;font-size:.72rem;font-weight:700;margin-bottom:.7rem}
+  .pill.ok{background:rgba(74,222,128,.15);color:var(--ok)} .pill.err{background:rgba(248,113,113,.15);color:var(--err)}
+  .productos{display:flex;flex-direction:column;gap:.5rem}
+  .prod{background:#0d0f14;border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;
+    display:flex;justify-content:space-between;align-items:center;font-size:.82rem}
+  .prod .sku{color:var(--cli);font-weight:600} .prod .stock0{color:var(--err)}
+  .key{color:var(--cli)} .str{color:var(--ok)} .num{color:var(--srv)}
+  .note{font-size:.78rem;color:#828aaa;background:#0d0f14;border-left:3px solid var(--srv);
+    padding:.8rem 1rem;border-radius:0 8px 8px 0;margin-top:1.5rem;line-height:1.5}
+  code{background:#0d0f14;padding:.1rem .35rem;border-radius:4px;color:var(--cli)}
+  a{color:var(--cli)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tag">Ejercicios 1-3 — Cliente web</div>
+  <h1>Cliente de la API del Almacén</h1>
+  <p class="lead">Esta página es un <b>cliente</b>: no almacena datos, los pide al
+  <b>servidor</b> (la API). Cada botón hace una petición HTTP real y muestra la respuesta.</p>
+
+  <div class="arch">
+    <span class="box cli">🖥️ CLIENTE (esta página)</span>
+    <span class="arrow">⇄ HTTP / JSON ⇄</span>
+    <span class="box srv">🗄️ SERVIDOR (la API)</span>
+  </div>
+
+  <div class="conn">
+    <span class="dot" id="dot"></span><span id="estadoSrv">comprobando…</span>
+    &nbsp;·&nbsp; servidor: <input type="text" id="base" value="http://127.0.0.1:8080">
+    &nbsp;·&nbsp; <a href="http://127.0.0.1:8080/docs" target="_blank">ver contrato /docs</a>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Catálogo (GET /productos)</h3>
+      <div class="verbs">
+        <button class="verb get" id="bList">GET listar</button>
+        <button class="verb get" id="bStock">GET con stock</button>
+      </div>
+      <div class="productos" id="lista"><span style="color:#828aaa;font-size:.8rem">Pulsa "GET listar"…</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Operaciones</h3>
+      <input class="f" id="fSku" placeholder="SKU (ej. ALT-004)" value="ALT-004">
+      <input class="f" id="fNombre" placeholder="Nombre" value="Altavoces Bluetooth">
+      <input class="f" id="fCat" placeholder="Categoría" value="audio">
+      <div style="display:flex;gap:.5rem">
+        <input class="f" id="fPrecio" placeholder="Precio" value="45" type="number" step="0.01">
+        <input class="f" id="fStock" placeholder="Stock" value="12" type="number">
+      </div>
+      <div class="verbs">
+        <button class="verb post" id="bCrear">POST crear</button>
+        <button class="verb put" id="bUpd">PUT stock+10</button>
+        <button class="verb del" id="bDel">DELETE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Respuesta del servidor</h3>
+    <div id="pill"></div>
+    <pre id="resp">—</pre>
+  </div>
+
+  <div class="note">
+    <b>Importante:</b> arranca el servidor primero (<code>python3 servidor/api.py</code>).
+    Como cliente y servidor están en orígenes distintos, la API envía cabeceras CORS para
+    permitir estas llamadas desde el navegador.
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const base=()=>$('#base').value.replace(/\/$/,'');
+
+function pintarJSON(obj){
+  return JSON.stringify(obj,null,2)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"([^"]+)":/g,'<span class="key">"$1"</span>:')
+    .replace(/: "([^"]*)"/g,': <span class="str">"$1"</span>')
+    .replace(/: (\d+\.?\d*)/g,': <span class="num">$1</span>');
+}
+function mostrar(status, ok, datos){
+  $('#pill').innerHTML=`<span class="pill ${ok?'ok':'err'}">HTTP ${status}</span>`;
+  $('#resp').innerHTML=pintarJSON(datos);
+}
+async function pedir(metodo, ruta, cuerpo){
+  try{
+    const opt={method:metodo, headers:{}};
+    if(cuerpo){opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(cuerpo);}
+    const res=await fetch(base()+ruta, opt);
+    const datos=await res.json();
+    mostrar(res.status, res.ok, datos);
+    return {ok:res.ok, datos};
+  }catch(e){
+    mostrar('—', false, {error:'No se pudo conectar. ¿Servidor arrancado?', detalle:e.message});
+    return {ok:false};
+  }
+}
+function leerForm(){
+  return {sku:$('#fSku').value.trim().toUpperCase(), nombre:$('#fNombre').value,
+    categoria:$('#fCat').value, precio:parseFloat($('#fPrecio').value), stock:parseInt($('#fStock').value)};
+}
+function pintarLista(datos){
+  const l=$('#lista'); l.innerHTML='';
+  if(!datos.productos||!datos.productos.length){l.innerHTML='<span style="color:#828aaa">(vacío)</span>';return;}
+  datos.productos.forEach(p=>{
+    const d=document.createElement('div'); d.className='prod';
+    d.innerHTML=`<span><span class="sku">${p.sku}</span> · ${p.nombre}</span>`+
+      `<span class="${p.stock===0?'stock0':''}">${p.precio}€ · stock ${p.stock}</span>`;
+    l.appendChild(d);
+  });
+}
+
+$('#bList').onclick=async()=>{const r=await pedir('GET','/productos');if(r.ok)pintarLista(r.datos);};
+$('#bStock').onclick=async()=>{const r=await pedir('GET','/productos?min_stock=1');if(r.ok)pintarLista(r.datos);};
+$('#bCrear').onclick=()=>pedir('POST','/productos',leerForm());
+$('#bUpd').onclick=async()=>{
+  const sku=$('#fSku').value.trim().toUpperCase();
+  const actual=await fetch(base()+'/productos/'+sku).then(r=>r.ok?r.json():null).catch(()=>null);
+  const nuevoStock=(actual?actual.stock:0)+10;
+  pedir('PUT','/productos/'+sku,{stock:nuevoStock});
+};
+$('#bDel').onclick=()=>pedir('DELETE','/productos/'+$('#fSku').value.trim().toUpperCase());
+
+async function comprobarServidor(){
+  try{
+    const r=await fetch(base()+'/health'); const d=await r.json();
+    $('#dot').className='dot up'; $('#estadoSrv').textContent=`conectado (${d.productos} productos)`;
+  }catch(e){
+    $('#dot').className='dot'; $('#estadoSrv').textContent='sin conexión';
+  }
+}
+$('#base').addEventListener('change',comprobarServidor);
+comprobarServidor();
+</script>
+</body>
+</html>

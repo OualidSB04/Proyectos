@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: API del ERP de Almacén
+  description: |
+    Contrato de la API REST del sistema de gestión de almacén.
+
+    Esta API es el **mecanismo de comunicación** (ejercicio 1) que permite a
+    sistemas externos y clientes consultar y modificar el inventario.
+    El servicio actúa como **servidor** (ejercicio 2) y este documento es el
+    **contrato** que deben seguir los desarrolladores externos (ejercicio 3).
+
+    Todas las respuestas son JSON. Los errores incluyen un objeto
+    `{ "error": "...", "timestamp": "..." }`.
+  version: 1.0.0
+  contact:
+    name: Equipo de integraciones
+    email: integraciones@ejemplo.com
+
+servers:
+  - url: http://127.0.0.1:8080
+    description: Servidor de desarrollo local
+
+tags:
+  - name: productos
+    description: Gestión del catálogo de productos
+  - name: sistema
+    description: Estado del servicio
+
+paths:
+  /health:
+    get:
+      tags: [sistema]
+      summary: Estado del servicio
+      description: Comprueba que la API está operativa.
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estado: { type: string, example: ok }
+                  productos: { type: integer, example: 3 }
+                  timestamp: { type: string, format: date-time }
+
+  /productos:
+    get:
+      tags: [productos]
+      summary: Listar productos
+      description: Devuelve todos los productos, con filtros opcionales.
+      parameters:
+        - name: categoria
+          in: query
+          description: Filtra por categoría exacta
+          schema: { type: string, example: perifericos }
+        - name: min_stock
+          in: query
+          description: Devuelve solo productos con stock >= valor
+          schema: { type: integer, example: 1 }
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer, example: 2 }
+                  productos:
+                    type: array
+                    items: { $ref: '#/components/schemas/Producto' }
+    post:
+      tags: [productos]
+      summary: Crear un producto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductoNuevo' }
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: El SKU ya existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /productos/{sku}:
+    parameters:
+      - name: sku
+        in: path
+        required: true
+        description: Identificador único del producto (formato ABC-123)
+        schema: { type: string, example: TEC-001 }
+    get:
+      tags: [productos]
+      summary: Obtener un producto
+      responses:
+        '200':
+          description: Producto encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '404':
+          description: No encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    put:
+      tags: [productos]
+      summary: Actualizar un producto
+      description: Actualización parcial; envía solo los campos a cambiar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductoActualizar' }
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '404':
+          description: No encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [productos]
+      summary: Borrar un producto
+      responses:
+        '200':
+          description: Producto borrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  borrado: { type: string, example: TEC-001 }
+        '404':
+          description: No encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  schemas:
+    Producto:
+      type: object
+      properties:
+        sku: { type: string, example: TEC-001 }
+        nombre: { type: string, example: Teclado mecánico }
+        categoria: { type: string, example: perifericos }
+        precio: { type: number, format: float, example: 79.90 }
+        stock: { type: integer, example: 34 }
+      required: [sku, nombre, categoria, precio, stock]
+
+    ProductoNuevo:
+      type: object
+      properties:
+        sku: { type: string, example: ALT-004, description: 'Formato ABC-123' }
+        nombre: { type: string, example: Altavoces Bluetooth }
+        categoria: { type: string, example: audio }
+        precio: { type: number, format: float, example: 45.00 }
+        stock: { type: integer, example: 12 }
+      required: [sku, nombre, categoria, precio, stock]
+
+    ProductoActualizar:
+      type: object
+      description: Todos los campos son opcionales (actualización parcial).
+      properties:
+        nombre: { type: string }
+        categoria: { type: string }
+        precio: { type: number, format: float }
+        stock: { type: integer, example: 20 }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: "No existe el producto 'XYZ-999'" }
+        timestamp: { type: string, format: date-time }
+      required: [error]

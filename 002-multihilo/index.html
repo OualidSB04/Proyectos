@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unidad 002 · Programación multihilo (memoria compartida)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  :root{
+    --bg:#0b0a10; --panel:#16131f; --line:#2a2438; --ink:#ece6f5;
+    --muted:#9085a6; --accent:#c792ea; --accent2:#ff5d8f; --ok:#7af0c0; --warn:#ffd166;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(800px 460px at 12% -10%, rgba(199,146,234,.1), transparent), var(--bg);
+    color:var(--ink); font-family:'JetBrains Mono',monospace; min-height:100vh;
+    padding:2.5rem 1.5rem; line-height:1.5;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  header{margin-bottom:2rem;border-bottom:1px solid var(--line);padding-bottom:1.5rem}
+  .tag{color:var(--accent);font-size:.78rem;letter-spacing:.22em;text-transform:uppercase}
+  h1{font-family:'Fraunces',serif;font-size:2.4rem;font-weight:600;margin:.3rem 0;letter-spacing:-.01em}
+  .lead{color:var(--muted);max-width:64ch;font-size:.92rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin:1.75rem 0}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.4rem;position:relative;overflow:hidden}
+  .card.danger{border-color:rgba(255,93,143,.35)}
+  .card.safe{border-color:rgba(122,240,192,.35)}
+  .card h2{font-family:'Fraunces',serif;font-weight:500;font-size:1.2rem;margin-bottom:.3rem}
+  .card.danger h2 b{color:var(--accent2)} .card.safe h2 b{color:var(--ok)}
+  .card p.desc{font-size:.82rem;color:var(--muted);margin-bottom:1rem;min-height:2.5em}
+  .counter{font-family:'Fraunces',serif;font-size:3rem;text-align:center;margin:.5rem 0}
+  .counter.danger{color:var(--accent2)} .counter.safe{color:var(--ok)}
+  .expected{text-align:center;font-size:.8rem;color:var(--muted);margin-bottom:1rem}
+  .verdict{text-align:center;font-size:.85rem;font-weight:700;height:1.4em;margin-top:.3rem}
+  .verdict.bad{color:var(--accent2)} .verdict.good{color:var(--ok)}
+  .controls{display:flex;flex-wrap:wrap;gap:.7rem;align-items:center;margin:1.5rem 0}
+  label{font-size:.82rem;color:var(--muted)}
+  input[type=range]{accent-color:var(--accent)}
+  button{font-family:inherit;font-size:.85rem;border-radius:9px;border:1px solid var(--line);
+    background:#0d0b14;color:var(--ink);padding:.65rem 1rem;cursor:pointer}
+  button.primary{background:var(--accent);color:#1c0f2a;border-color:transparent;font-weight:700}
+  button:hover{filter:brightness(1.1)} button:disabled{opacity:.5;cursor:not-allowed}
+  .threads{display:flex;gap:4px;justify-content:center;margin:1rem 0;flex-wrap:wrap}
+  .tcell{width:18px;height:18px;border-radius:4px;background:#0d0b14;border:1px solid var(--line);transition:.15s}
+  .tcell.run{background:var(--warn);box-shadow:0 0 8px rgba(255,209,102,.5)}
+  .tcell.done{background:var(--ok)}
+  .note{font-size:.8rem;color:var(--muted);background:#0d0b14;border-left:3px solid var(--warn);
+    padding:.8rem 1rem;border-radius:0 8px 8px 0;margin-top:1.5rem}
+  .fallback{display:none;font-size:.8rem;color:var(--warn);background:#0d0b14;border:1px solid var(--line);
+    padding:.8rem 1rem;border-radius:8px;margin-top:1rem}
+  .concepts{margin-top:2rem;border-top:1px solid var(--line);padding-top:1.5rem}
+  .concepts h3{font-size:.78rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:.8rem}
+  .concepts ul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.85rem}
+  @media(max-width:760px){.concepts ul{grid-template-columns:1fr}}
+  .concepts li{color:var(--muted)} .concepts li b{color:var(--ink)}
+  code{background:#0d0b14;padding:.1rem .35rem;border-radius:4px;font-size:.85em;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Unidad 002 — Programación multihilo</div>
+    <h1>Memoria compartida y condiciones de carrera</h1>
+    <p class="lead">Varios hilos (Web Workers) incrementan un <b>mismo contador en memoria compartida</b>
+    (<code>SharedArrayBuffer</code>). A la izquierda, sin sincronización: aparece la <b>condición de carrera</b>.
+    A la derecha, con operaciones atómicas (<code>Atomics</code>): el resultado siempre es correcto.</p>
+  </header>
+
+  <div class="controls">
+    <label>Hilos: <input type="range" id="nh" min="2" max="8" value="6"></label>
+    <span id="nhVal" style="color:var(--accent);font-size:.82rem">6</span>
+    <label>Incrementos/hilo: <input type="range" id="inc" min="10000" max="200000" step="10000" value="100000"></label>
+    <span id="incVal" style="color:var(--accent);font-size:.82rem">100.000</span>
+    <button class="primary" id="run">▶ Lanzar hilos</button>
+  </div>
+
+  <div class="grid">
+    <div class="card danger">
+      <h2>① Sin <b>Lock</b></h2>
+      <p class="desc">Lectura y escritura en pasos separados. Dos hilos pueden leer el mismo valor y pisarse.</p>
+      <div class="threads" id="th1"></div>
+      <div class="counter danger" id="c1">0</div>
+      <div class="expected">esperado: <span id="e1">—</span></div>
+      <div class="verdict" id="v1"></div>
+    </div>
+    <div class="card safe">
+      <h2>② Con <b>Atomics</b></h2>
+      <p class="desc">Incremento atómico indivisible: <code>Atomics.add</code> garantiza exclusión mutua.</p>
+      <div class="threads" id="th2"></div>
+      <div class="counter safe" id="c2">0</div>
+      <div class="expected">esperado: <span id="e2">—</span></div>
+      <div class="verdict" id="v2"></div>
+    </div>
+  </div>
+
+  <div class="fallback" id="fallback"></div>
+
+  <div class="note">
+    <b>¿Por qué pasa?</b> <code>contador = contador + 1</code> son en realidad 3 operaciones
+    (leer, sumar, escribir). Si dos hilos las intercalan, uno sobrescribe el trabajo del otro y
+    se "pierden" incrementos. El resultado sin Lock es <b>no determinista</b>: cámbialo y verás
+    cifras distintas cada vez.
+  </div>
+
+  <div class="concepts">
+    <h3>Conceptos de la unidad</h3>
+    <ul>
+      <li><b>Hilo:</b> los workers comparten el mismo <code>SharedArrayBuffer</code>.</li>
+      <li><b>Recurso compartido:</b> un único entero al que acceden todos.</li>
+      <li><b>Condición de carrera:</b> el resultado depende del orden de ejecución.</li>
+      <li><b>Sincronización:</b> <code>Atomics</code> hace el incremento indivisible (como un Lock).</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const sharedOK = (typeof SharedArrayBuffer!=='undefined');
+
+// Worker que incrementa un contador en un SharedArrayBuffer.
+// modo "raw" = sin sincronizar (race), modo "atomic" = Atomics.add
+const workerSrc = `
+self.onmessage = e => {
+  const {sab, modo, inc, id} = e.data;
+  const arr = new Int32Array(sab);
+  if(modo==='atomic'){
+    for(let i=0;i<inc;i++){ Atomics.add(arr, 0, 1); }
+  } else {
+    for(let i=0;i<inc;i++){
+      let v = Atomics.load(arr,0);   // leer
+      v = v + 1;                      // sumar
+      Atomics.store(arr,0,v);         // escribir (ventana para la carrera)
+    }
+  }
+  self.postMessage({id});
+};`;
+let workerURL=null;
+if(sharedOK){ workerURL = URL.createObjectURL(new Blob([workerSrc],{type:'application/javascript'})); }
+
+// Fallback (si el navegador/sandbox no permite SharedArrayBuffer):
+// simulamos la carrera en el hilo principal de forma determinista-ish.
+function buildThreads(el,n){el.innerHTML='';for(let i=0;i<n;i++){const c=document.createElement('div');c.className='tcell';el.appendChild(c);}}
+
+async function correrReal(modo, n, inc, cBox, thBox, vBox, esperado){
+  const sab = new SharedArrayBuffer(4);
+  const arr = new Int32Array(sab); arr[0]=0;
+  buildThreads(thBox,n);
+  const cells=thBox.children;
+  const tareas=[];
+  for(let k=0;k<n;k++){
+    cells[k].className='tcell run';
+    tareas.push(new Promise(res=>{
+      const w=new Worker(workerURL);
+      w.onmessage=()=>{cells[k].className='tcell done';w.terminate();res();};
+      w.postMessage({sab,modo,inc,id:k});
+    }));
+  }
+  // animar el contador mientras corren
+  const anim=setInterval(()=>{cBox.textContent=Atomics.load(arr,0).toLocaleString('es');},40);
+  await Promise.all(tareas);
+  clearInterval(anim);
+  const final=Atomics.load(arr,0);
+  cBox.textContent=final.toLocaleString('es');
+  const ok=(final===esperado);
+  vBox.textContent = ok ? '✓ correcto' : `✗ se perdieron ${(esperado-final).toLocaleString('es')}`;
+  vBox.className='verdict '+(ok?'good':'bad');
+  return final;
+}
+
+// Simulación de respaldo: imita pérdida de incrementos sin SAB real
+async function correrSimulado(modo,n,inc,cBox,thBox,vBox,esperado){
+  buildThreads(thBox,n);
+  const cells=thBox.children;
+  for(let k=0;k<n;k++) cells[k].className='tcell run';
+  let final;
+  if(modo==='atomic'){ final=esperado; }
+  else {
+    // modelo simple de colisiones: cuantos mas hilos, mas perdidas
+    const perdidaAprox = Math.floor(esperado * (0.02*(n-1)) * (0.5+Math.random()*0.5));
+    final = esperado - perdidaAprox;
+  }
+  // animacion
+  await new Promise(r=>{
+    let v=0; const step=Math.ceil(final/30);
+    const t=setInterval(()=>{v=Math.min(final,v+step);cBox.textContent=v.toLocaleString('es');
+      if(v>=final){clearInterval(t);r();}},30);
+  });
+  for(let k=0;k<n;k++) cells[k].className='tcell done';
+  const ok=(final===esperado);
+  vBox.textContent=ok?'✓ correcto':`✗ se perdieron ${(esperado-final).toLocaleString('es')}`;
+  vBox.className='verdict '+(ok?'good':'bad');
+}
+
+async function lanzar(){
+  $('#run').disabled=true;
+  const n=+$('#nh').value, inc=+$('#inc').value, esperado=n*inc;
+  $('#e1').textContent=esperado.toLocaleString('es');
+  $('#e2').textContent=esperado.toLocaleString('es');
+  $('#c1').textContent='0'; $('#c2').textContent='0';
+  $('#v1').textContent=''; $('#v2').textContent='';
+
+  if(sharedOK){
+    await correrReal('raw', n, inc, $('#c1'), $('#th1'), $('#v1'), esperado);
+    await correrReal('atomic', n, inc, $('#c2'), $('#th2'), $('#v2'), esperado);
+  } else {
+    $('#fallback').style.display='block';
+    $('#fallback').innerHTML='⚠ Tu navegador no habilita <code>SharedArrayBuffer</code> '+
+      '(requiere cabeceras COOP/COEP). Mostrando una <b>simulación</b> del mismo fenómeno.';
+    await correrSimulado('raw', n, inc, $('#c1'), $('#th1'), $('#v1'), esperado);
+    await correrSimulado('atomic', n, inc, $('#c2'), $('#th2'), $('#v2'), esperado);
+  }
+  $('#run').disabled=false;
+}
+
+$('#nh').oninput=e=>{$('#nhVal').textContent=e.target.value; buildThreads($('#th1'),+e.target.value); buildThreads($('#th2'),+e.target.value);};
+$('#inc').oninput=e=>$('#incVal').textContent=(+e.target.value).toLocaleString('es');
+$('#run').onclick=lanzar;
+buildThreads($('#th1'),6); buildThreads($('#th2'),6);
+</script>
+</body>
+</html>

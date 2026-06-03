@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrena tu propio RAG</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+  :root{
+    --bg:#0b0d12; --panel:#151821; --line:#252a37; --ink:#e9ecf3; --muted:#878fa3;
+    --acc:#6ee7b7; --acc2:#60a5fa; --warn:#fbbf24; --err:#f87171;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(800px 460px at 85% -10%, rgba(110,231,183,.08), transparent),
+      radial-gradient(600px 400px at 5% 5%, rgba(96,165,250,.06), transparent), var(--bg);
+    color:var(--ink); font-family:'Sora',sans-serif; min-height:100vh; padding:2.5rem 1.5rem;
+  }
+  .wrap{max-width:920px;margin:0 auto}
+  header{margin-bottom:.5rem}
+  .tag{color:var(--acc);font-size:.74rem;letter-spacing:.22em;text-transform:uppercase;font-weight:600}
+  h1{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;margin:.3rem 0}
+  .lead{color:var(--muted);max-width:62ch;font-size:.95rem;line-height:1.6}
+  .status{display:flex;gap:1rem;flex-wrap:wrap;margin:1.5rem 0;font-family:'JetBrains Mono',monospace;font-size:.78rem}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:.4rem .9rem;color:var(--muted)}
+  .chip b{color:var(--ink)} .chip.on b{color:var(--acc)} .chip.off b{color:var(--warn)}
+  .steps{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-top:1rem}
+  @media(max-width:780px){.steps{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1.5rem}
+  .card .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+    border-radius:8px;background:var(--acc);color:#06251a;font-weight:800;font-size:.9rem;margin-bottom:.6rem}
+  .card h2{font-size:1.2rem;font-weight:700;margin-bottom:.3rem}
+  .card p{font-size:.82rem;color:var(--muted);margin-bottom:1rem;line-height:1.5}
+  textarea,input{width:100%;font-family:'JetBrains Mono',monospace;font-size:.85rem;border-radius:10px;
+    border:1px solid var(--line);background:#0b0d12;color:var(--ink);padding:.8rem;resize:vertical}
+  textarea:focus,input:focus{outline:2px solid var(--acc2);border-color:transparent}
+  textarea{min-height:160px;line-height:1.5}
+  .controls{display:flex;gap:.6rem;align-items:center;margin-top:.8rem;flex-wrap:wrap}
+  button{font-family:inherit;font-size:.85rem;font-weight:700;border-radius:10px;border:1px solid var(--line);
+    background:#0b0d12;color:var(--ink);padding:.7rem 1.2rem;cursor:pointer;transition:.15s}
+  button.primary{background:var(--acc);color:#06251a;border-color:transparent}
+  button.primary2{background:var(--acc2);color:#04162e;border-color:transparent}
+  button:hover{filter:brightness(1.08)} button:disabled{opacity:.5;cursor:not-allowed}
+  .toggle{display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--muted)}
+  .toggle input{width:auto}
+  .msg{font-size:.8rem;margin-top:.7rem;min-height:1.2em;font-family:'JetBrains Mono',monospace}
+  .msg.ok{color:var(--acc)} .msg.err{color:var(--err)}
+  .answer{margin-top:2rem;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:1.5rem;display:none}
+  .answer.show{display:block;animation:fade .3s}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}}
+  .answer h3{font-size:.74rem;letter-spacing:.2em;text-transform:uppercase;color:var(--acc2);margin-bottom:.8rem}
+  .respuesta{font-size:1rem;line-height:1.7;white-space:pre-wrap;color:var(--ink);
+    background:#0b0d12;border-radius:12px;padding:1.2rem;border-left:3px solid var(--acc)}
+  .fuente{font-size:.72rem;color:var(--muted);margin-top:.5rem;font-family:'JetBrains Mono',monospace}
+  .chunks{margin-top:1.5rem}
+  .chunks summary{cursor:pointer;font-size:.8rem;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .chunk{background:#0b0d12;border:1px solid var(--line);border-radius:10px;padding:.8rem;margin-top:.6rem;
+    font-size:.82rem;line-height:1.5;color:var(--muted)}
+  .chunk .d{color:var(--acc2);font-size:.7rem;font-family:'JetBrains Mono',monospace}
+  .footer{margin-top:2.5rem;border-top:1px solid var(--line);padding-top:1.2rem;font-size:.78rem;color:var(--muted);line-height:1.6}
+  code{background:#0b0d12;padding:.1rem .35rem;border-radius:4px;color:var(--acc2);font-family:'JetBrains Mono',monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Ejercicio 8 — RAG empaquetado</div>
+    <h1>Entrena tu propio RAG</h1>
+    <p class="lead">Pega cualquier texto, entrénalo y hazle preguntas. El sistema lo
+    trocea, calcula <b>embeddings</b>, los guarda en <b>ChromaDB</b> y recupera los
+    fragmentos más relevantes. Si tienes <b>Ollama</b>, además redacta una respuesta natural.</p>
+  </header>
+
+  <div class="status" id="status">
+    <span class="chip">chunks: <b id="sChunks">0</b></span>
+    <span class="chip">embeddings: <b id="sEmb">…</b></span>
+    <span class="chip" id="sOllamaChip">IA (Ollama): <b id="sOllama">…</b></span>
+  </div>
+
+  <div class="steps">
+    <!-- PASO 1 -->
+    <div class="card">
+      <span class="num">1</span>
+      <h2>Entrena</h2>
+      <p>Pega un texto largo (un artículo, apuntes, documentación…).</p>
+      <textarea id="texto" placeholder="Pega aquí tu texto..."></textarea>
+      <input type="text" id="fuente" placeholder="Nombre/etiqueta (opcional)" style="margin-top:.6rem">
+      <div class="controls">
+        <button class="primary" id="btnEntrenar">⚙ Entrenar RAG</button>
+        <button id="btnReiniciar">Vaciar BD</button>
+      </div>
+      <div class="msg" id="msgEntrenar"></div>
+    </div>
+
+    <!-- PASO 2 -->
+    <div class="card">
+      <span class="num">2</span>
+      <h2>Pregunta</h2>
+      <p>Haz una pregunta sobre el texto que has entrenado.</p>
+      <input type="text" id="pregunta" placeholder="¿Qué quieres saber?">
+      <div class="controls">
+        <button class="primary2" id="btnPreguntar">🔎 Preguntar</button>
+        <label class="toggle"><input type="checkbox" id="usarIA" checked> usar IA</label>
+      </div>
+      <div class="msg" id="msgPreguntar"></div>
+    </div>
+  </div>
+
+  <!-- RESPUESTA -->
+  <div class="answer" id="answer">
+    <h3>Respuesta</h3>
+    <div class="respuesta" id="respuesta"></div>
+    <div class="fuente" id="fuente"></div>
+    <details class="chunks" id="detalleChunks">
+      <summary>Ver fragmentos recuperados (chunks crudos)</summary>
+      <div id="listaChunks"></div>
+    </details>
+  </div>
+
+  <div class="footer">
+    <b>Cómo activar la IA:</b> instala <a href="https://ollama.com" style="color:var(--acc2)">Ollama</a>,
+    ejecuta <code>ollama pull llama3.1:8b</code> y deja el servicio activo. Sin Ollama, la app
+    funciona igual pero muestra los fragmentos crudos en lugar de una respuesta redactada.
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+
+async function cargarEstado(){
+  try{
+    const r=await fetch('/api/estado'); const d=await r.json();
+    $('#sChunks').textContent=d.chunks;
+    $('#sEmb').textContent=d.embedding.includes('respaldo')?'respaldo':'modelo';
+    $('#sOllama').textContent=d.ollama?'activa':'no';
+    $('#sOllamaChip').className='chip '+(d.ollama?'on':'off');
+  }catch(e){}
+}
+
+$('#btnEntrenar').onclick=async()=>{
+  const texto=$('#texto').value.trim();
+  const fuente=$('#fuente').value.trim()||'usuario';
+  const m=$('#msgEntrenar');
+  if(texto.length<50){m.className='msg err';m.textContent='El texto es muy corto (mín. 50 caracteres).';return;}
+  $('#btnEntrenar').disabled=true; m.className='msg'; m.textContent='Entrenando…';
+  try{
+    const r=await fetch('/api/entrenar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({texto,fuente})});
+    const d=await r.json();
+    if(r.ok){m.className='msg ok';m.textContent=`✓ ${d.chunks_añadidos} chunks añadidos (total: ${d.total_chunks}).`;$('#texto').value='';cargarEstado();}
+    else{m.className='msg err';m.textContent='✗ '+(d.error||'error');}
+  }catch(e){m.className='msg err';m.textContent='✗ '+e.message;}
+  $('#btnEntrenar').disabled=false;
+};
+
+$('#btnReiniciar').onclick=async()=>{
+  if(!confirm('¿Vaciar toda la base de datos?'))return;
+  await fetch('/api/reiniciar',{method:'POST'});
+  $('#answer').className='answer';
+  $('#msgEntrenar').className='msg ok'; $('#msgEntrenar').textContent='Base de datos vaciada.';
+  cargarEstado();
+};
+
+$('#btnPreguntar').onclick=async()=>{
+  const pregunta=$('#pregunta').value.trim();
+  const ia=$('#usarIA').checked;
+  const m=$('#msgPreguntar');
+  if(!pregunta){m.className='msg err';m.textContent='Escribe una pregunta.';return;}
+  $('#btnPreguntar').disabled=true; m.className='msg'; m.textContent='Buscando…';
+  try{
+    const r=await fetch('/api/preguntar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pregunta,ia})});
+    const d=await r.json();
+    if(!r.ok){m.className='msg err';m.textContent='✗ '+(d.error||'error');$('#btnPreguntar').disabled=false;return;}
+    m.textContent='';
+    $('#answer').className='answer show';
+    $('#respuesta').textContent=d.respuesta_ia||'(sin respuesta)';
+    $('#fuente').textContent='fuente: '+(d.fuente_ia||'recuperación');
+    const lc=$('#listaChunks'); lc.innerHTML='';
+    d.chunks.forEach((c,i)=>{
+      const div=document.createElement('div'); div.className='chunk';
+      div.innerHTML=`<div class="d">chunk ${i+1} · distancia ${d.distancias[i]??'?'}</div>${c}`;
+      lc.appendChild(div);
+    });
+  }catch(e){m.className='msg err';m.textContent='✗ '+e.message;}
+  $('#btnPreguntar').disabled=false;
+};
+
+$('#pregunta').addEventListener('keydown',e=>{if(e.key==='Enter')$('#btnPreguntar').click();});
+cargarEstado();
+</script>
+</body>
+</html>

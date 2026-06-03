@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unidad 003 · Comunicaciones en red (chat)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root{
+    --bg:#071a16; --panel:#0c2620; --line:#16463a; --ink:#dcfce7;
+    --muted:#6fae9a; --accent:#34d399; --accent2:#fbbf24; --me:#0e3d31; --otro:#123;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(700px 400px at 90% 110%, rgba(52,211,153,.1), transparent), var(--bg);
+    color:var(--ink); font-family:'IBM Plex Mono',monospace; min-height:100vh;
+    padding:2rem 1.25rem; line-height:1.5;
+  }
+  .wrap{max-width:920px;margin:0 auto}
+  header{margin-bottom:1.5rem}
+  .tag{color:var(--accent);font-size:.75rem;letter-spacing:.22em;text-transform:uppercase}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:2.2rem;font-weight:700;margin:.3rem 0}
+  .lead{color:var(--muted);max-width:64ch;font-size:.9rem}
+  .openhint{background:var(--panel);border:1px dashed var(--line);border-radius:10px;
+    padding:.8rem 1rem;font-size:.85rem;color:var(--accent2);margin:1rem 0;display:flex;
+    gap:.6rem;align-items:center}
+  .layout{display:grid;grid-template-columns:1.6fr 1fr;gap:1rem;margin-top:1rem}
+  @media(max-width:780px){.layout{grid-template-columns:1fr}}
+  .chatbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    display:flex;flex-direction:column;height:480px;overflow:hidden}
+  .chathead{padding:.8rem 1rem;border-bottom:1px solid var(--line);display:flex;
+    justify-content:space-between;align-items:center;font-size:.82rem}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:.4rem;
+    box-shadow:0 0 6px var(--accent)}
+  .msgs{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.55rem}
+  .msg{max-width:78%;padding:.5rem .8rem;border-radius:12px;font-size:.88rem;word-break:break-word}
+  .msg.me{align-self:flex-end;background:var(--me);border:1px solid var(--line)}
+  .msg.otro{align-self:flex-start;background:#0a1f1a;border:1px solid var(--line)}
+  .msg .who{font-size:.68rem;color:var(--accent);margin-bottom:.15rem}
+  .msg.sys{align-self:center;background:transparent;color:var(--muted);font-size:.76rem;font-style:italic}
+  .composer{display:flex;gap:.5rem;padding:.8rem;border-top:1px solid var(--line)}
+  input,button{font-family:inherit;font-size:.88rem;border-radius:9px;border:1px solid var(--line);
+    background:#06140f;color:var(--ink);padding:.6rem .8rem}
+  input{flex:1} input:focus{outline:2px solid var(--accent);border-color:transparent}
+  button{cursor:pointer;font-weight:600}
+  button.send{background:var(--accent);color:#04241a;border-color:transparent}
+  button:hover{filter:brightness(1.08)}
+  .namebar{display:flex;gap:.5rem;margin-bottom:1rem}
+  .protocol{background:#04120d;border:1px solid var(--line);border-radius:14px;padding:1rem;
+    display:flex;flex-direction:column;height:480px}
+  .protocol h3{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent2);margin-bottom:.6rem}
+  .log{flex:1;overflow-y:auto;font-size:.72rem;line-height:1.6}
+  .log .line{margin-bottom:.3rem;color:var(--muted)}
+  .log .out{color:var(--accent)} .log .in{color:#7dd3fc} .log .ev{color:var(--accent2)}
+  .concepts{margin-top:2rem;border-top:1px solid var(--line);padding-top:1.5rem}
+  .concepts h3{font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:.8rem}
+  .concepts ul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.85rem}
+  @media(max-width:780px){.concepts ul{grid-template-columns:1fr}}
+  .concepts li{color:var(--muted)} .concepts li b{color:var(--ink)}
+  code{background:#04120d;padding:.1rem .35rem;border-radius:4px;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Unidad 003 — Comunicaciones en red</div>
+    <h1>Chat en tiempo real</h1>
+    <p class="lead">Cada pestaña del navegador actúa como un <b>cliente</b> conectado.
+    Los mensajes se transmiten a todos los clientes mediante un canal compartido
+    (<code>BroadcastChannel</code>), igual que un servidor reenvía mensajes por sockets.
+    El panel derecho muestra el <b>protocolo</b>: las tramas que entran y salen.</p>
+  </header>
+
+  <div class="openhint">
+    👉 Abre este mismo archivo en <b>dos o más pestañas</b> para ver el chat entre clientes.
+  </div>
+
+  <div class="namebar">
+    <input type="text" id="nombre" placeholder="Tu nombre de usuario..." maxlength="20">
+    <button id="conectar" class="send">Conectar</button>
+  </div>
+
+  <div class="layout">
+    <div class="chatbox">
+      <div class="chathead">
+        <span><span class="dot"></span><span id="estado">Desconectado</span></span>
+        <span id="online" style="color:var(--muted)">0 en línea</span>
+      </div>
+      <div class="msgs" id="msgs"></div>
+      <div class="composer">
+        <input type="text" id="texto" placeholder="Escribe un mensaje..." disabled>
+        <button class="send" id="enviar" disabled>Enviar</button>
+      </div>
+    </div>
+
+    <div class="protocol">
+      <h3>⇄ Registro del protocolo</h3>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div class="concepts">
+    <h3>Conceptos de la unidad</h3>
+    <ul>
+      <li><b>Cliente-servidor:</b> cada pestaña es un cliente; el canal hace de servidor.</li>
+      <li><b>Difusión (broadcast):</b> un mensaje llega a todos los conectados.</li>
+      <li><b>Protocolo:</b> tramas con tipo (<code>JOIN</code>, <code>MSG</code>, <code>LEAVE</code>) y datos.</li>
+      <li><b>Presencia:</b> avisos de conexión/desconexión y conteo de usuarios.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const canal = ('BroadcastChannel' in window) ? new BroadcastChannel('sap-chat-u003') : null;
+let yo = null;
+const id = Math.random().toString(36).slice(2,8);
+const presentes = new Map();   // id -> nombre
+
+function ahora(){return new Date().toLocaleTimeString('es');}
+function log(clase, txt){
+  const l=$('#log'); const d=document.createElement('div');
+  d.className='line '+clase; d.textContent=`[${ahora()}] ${txt}`;
+  l.appendChild(d); l.scrollTop=l.scrollHeight;
+}
+function pintar(clase, who, txt){
+  const m=$('#msgs'); const d=document.createElement('div');
+  if(clase==='sys'){ d.className='msg sys'; d.textContent=txt; }
+  else{
+    d.className='msg '+clase;
+    d.innerHTML = (clase==='otro'?`<div class="who">${who}</div>`:'') + escapar(txt);
+  }
+  m.appendChild(d); m.scrollTop=m.scrollHeight;
+}
+function escapar(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function actualizarOnline(){ $('#online').textContent = `${presentes.size} en línea`; }
+
+function emitir(trama){
+  if(!canal){log('ev','(sin BroadcastChannel — abre en otra pestaña del mismo navegador)');return;}
+  canal.postMessage(trama);
+  log('out', `→ ${trama.tipo} ${trama.texto?('"'+trama.texto+'"'):''}`);
+}
+
+function conectar(){
+  const n=$('#nombre').value.trim();
+  if(!n){ $('#nombre').focus(); return; }
+  yo=n; presentes.set(id,n); actualizarOnline();
+  $('#estado').textContent='Conectado como '+n;
+  $('#texto').disabled=false; $('#enviar').disabled=false;
+  $('#conectar').textContent='Reconectar';
+  pintar('sys','','Te has unido al chat');
+  emitir({tipo:'JOIN', id, nombre:n});
+  // pedir lista de presentes a quien ya esté
+  emitir({tipo:'WHO', id, nombre:n});
+}
+
+function enviar(){
+  const t=$('#texto').value.trim(); if(!t||!yo) return;
+  pintar('me','Tú',t);
+  emitir({tipo:'MSG', id, nombre:yo, texto:t});
+  $('#texto').value='';
+}
+
+if(canal){
+  canal.onmessage = e=>{
+    const m=e.data; if(m.id===id) return;     // ignorar mis propios ecos
+    log('in', `← ${m.tipo} de ${m.nombre||'?'} ${m.texto?('"'+m.texto+'"'):''}`);
+    if(m.tipo==='JOIN'){
+      presentes.set(m.id,m.nombre); actualizarOnline();
+      if(yo) pintar('sys','',`${m.nombre} se ha unido`);
+    } else if(m.tipo==='WHO'){
+      presentes.set(m.id,m.nombre); actualizarOnline();
+      if(yo) canal.postMessage({tipo:'HERE', id, nombre:yo}); // responder presencia
+    } else if(m.tipo==='HERE'){
+      presentes.set(m.id,m.nombre); actualizarOnline();
+    } else if(m.tipo==='MSG'){
+      pintar('otro', m.nombre, m.texto);
+    } else if(m.tipo==='LEAVE'){
+      presentes.delete(m.id); actualizarOnline();
+      if(yo) pintar('sys','',`${m.nombre} ha salido`);
+    }
+  };
+  window.addEventListener('beforeunload', ()=>{
+    if(yo) canal.postMessage({tipo:'LEAVE', id, nombre:yo});
+  });
+}
+
+$('#conectar').onclick=conectar;
+$('#enviar').onclick=enviar;
+$('#texto').addEventListener('keydown',e=>{if(e.key==='Enter')enviar();});
+$('#nombre').addEventListener('keydown',e=>{if(e.key==='Enter')conectar();});
+log('ev','Canal listo. Conéctate para empezar.');
+</script>
+</body>
+</html>
