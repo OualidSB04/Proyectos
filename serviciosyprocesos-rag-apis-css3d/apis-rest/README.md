@@ -18,9 +18,9 @@ pip install -r requirements.txt
 **1) Arranca el servidor** (una terminal):
 ```bash
 python3 servidor/api.py
-# API:      http://127.0.0.1:8000
-# Docs:     http://127.0.0.1:8000/docs
-# Contrato: http://127.0.0.1:8000/openapi.yaml
+# API:      http://127.0.0.1:8080
+# Docs:     http://127.0.0.1:8080/docs
+# Contrato: http://127.0.0.1:8080/openapi.yaml
 ```
 
 **2) Consume la API** con cualquiera de los dos clientes:
